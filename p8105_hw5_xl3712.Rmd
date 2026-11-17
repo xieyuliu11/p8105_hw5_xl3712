@@ -1,0 +1,89 @@
+---
+title: "p8105_hw5_xl3712"
+author: "Xieyu Liu"
+date: "2026-11-17"
+output: github_document
+---
+```{r}
+library(tidyverse)
+```
+
+# Problem 1
+
+```{r}
+birthday_repeated = function(n_room) {
+  
+  birthdays = sample(1:365, size = n_room, replace = T)
+  
+  repeated_birthdays = length(unique(birthdays)) < n_room
+  
+  return(repeated_birthdays)
+}
+```
+
+```{r}
+birthday_results = 
+  expand_grid(
+    number_of_people = 2:50,
+    iter = 1:10000
+  )|>
+  mutate(
+    repeated = map_lgl(number_of_people, birthday_repeated)
+  )
+
+birthday_results |>
+  group_by(number_of_people) |>
+  summarise(prob_of_repeated = mean(repeated))|>
+  ggplot(aes(x = number_of_people, y = prob_of_repeated)) +
+  geom_point()+
+  geom_line()
+```
+
+As the group size increases, the probability of at least two people sharing a birthday also increases. This is because larger groups have more possible pairs of people, increasing the chance of a birthday match.
+
+
+# Problem 2
+
+```{r}
+file_df = tibble(
+  file = list.files("data", full.names = T)
+)
+
+file_df = file_df|>
+  mutate(data = map(file, read_csv))
+
+file_df = file_df|>
+  mutate(
+    arm = str_extract(file, "con|exp"),
+    subject_id = str_extract(file, "\\d{2}")
+  )
+
+tidy_df = file_df|>
+  unnest(data)|>
+  pivot_longer(
+    cols = starts_with("week"),
+    names_to = "week",
+    values_to = "observation"
+  )|>
+  mutate(
+    week = str_remove(week, "week_")|>
+      as.numeric()
+  )
+
+tidy_df|>
+  ggplot(aes(
+    x = week, y = observation, group = subject_id, color = subject_id)
+    )+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~ arm)+
+  labs(
+    title = "Observations over time by study arm",
+    x = "Week",
+    y = "Observation",
+    color = "Subject id"
+  )+
+  theme_minimal()
+```
+
+The control group showed substantial individual variability over time, but observations generally remained relatively low and did not demonstrate a clear increasing trend. In contrast, observations in the experimental group generally increased over time and were higher than those in control group, especially after approximately week 3.
