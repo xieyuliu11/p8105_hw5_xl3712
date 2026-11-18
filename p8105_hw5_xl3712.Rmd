@@ -8,7 +8,7 @@ output: github_document
 library(tidyverse)
 ```
 
-# Problem 1
+## Problem 1
 
 ```{r}
 birthday_repeated = function(n_room) {
@@ -42,7 +42,7 @@ birthday_results |>
 As the group size increases, the probability of at least two people sharing a birthday also increases. This is because larger groups have more possible pairs of people, increasing the chance of a birthday match.
 
 
-# Problem 2
+## Problem 2
 
 ```{r}
 file_df = tibble(
@@ -87,3 +87,104 @@ tidy_df|>
 ```
 
 The control group showed substantial individual variability over time, but observations generally remained relatively low and did not demonstrate a clear increasing trend. In contrast, observations in the experimental group generally increased over time and were higher than those in control group, especially after approximately week 3.
+
+
+## Problem 3
+
+```{r}
+n = 30
+sigma = 5
+mu = 0
+set.seed(1234)
+sim_t_test = function(mu, n = 30, sigma = 5){
+  sim_data = tibble(
+    x = rnorm(n, mean = mu, sd = sigma)
+  )
+  test_result = t.test(x ~ 1, data = sim_data, mu = 0)
+  
+  broom::tidy(test_result)|>
+    select(estimate, p.value)
+}
+
+sim_results_df = 
+  expand_grid(
+    true_mu = 0:6,
+    iter = 1:5000
+  )|>
+  mutate(
+    est_df = map(true_mu, sim_t_test)
+  )|>
+  unnest(est_df)|>
+  mutate(
+    reject_null = p.value < 0.05
+  )
+```
+
+
+```{r}
+power_df = 
+  sim_results_df|>
+  group_by(true_mu)|>
+  summarise(
+    power = mean(reject_null)
+  )
+
+power_df|>
+  ggplot(aes(x = true_mu, y = power))+
+  geom_point()+
+  geom_line()
+```
+
+There is a strong positive association between the true \(\mu\) and power. When \(\mu\) = 0, the rejection proportion is approximately 0.05, as expected given \(\alpha\) = 0.05. As mu increases and moves father from the null value of zero, power increases sharply. For effects of \(\mu\) ≥ 4, power is nearly 1.
+
+```{r}
+estimate_df = 
+  sim_results_df|>
+  group_by(true_mu)|>
+  summarise(
+    avg_estimate = mean(estimate),
+    avg_estimate_rejected = mean(estimate[reject_null])
+  )
+
+estimate_df|>
+  ggplot(aes(x = true_mu, y = avg_estimate))+
+  geom_point()+
+  geom_line(
+    alpha = 0.8,
+    linewidth = 1.0
+  )+
+  geom_abline(
+    intercept = 0,
+    slope = 1,
+    linetype = "dashed",
+    color = "red",
+    linewidth = .9
+  )
+```
+
+The average estimated \(\hat{\mu}\) is approximately equal to the true value of \(\mu\). The black line nearly overlaps with the red \(y = x\) reference line.
+
+```{r}
+estimate_df_long = 
+  estimate_df|>
+  pivot_longer(
+    col = c(avg_estimate, avg_estimate_rejected),
+    names_to = "estimate_type",
+    values_to = "average_estimate"
+  )
+
+estimate_df_long|>
+  ggplot(aes(x = true_mu, y = average_estimate, color = estimate_type)) +
+  geom_line() +
+  geom_point() +
+  scale_color_discrete(
+    labels = c(avg_estimate = "All simulated samples",
+             avg_estimate_rejected = "Only rejected null hypothesis"))+
+  labs(
+    x = "True value of mu",
+    y = "Average estimated mu"
+  ) +
+  theme_minimal()
+```
+
+The average estimate calculated only among samples that rejected the null hypothesis is not generally equal to the true \(\mu\). For small true effects (i.e. \(\mu\)= 1,2), the mean estimate among only significant results is larger than the true \(\mu\). This is because significant tests select samples whose estimates are unusually far from zero. As \(\mu\) gets larger and power approaches 1, almost all samples are significant, so this bias disappears.
